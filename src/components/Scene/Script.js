@@ -8,7 +8,9 @@ const gui = new dat.GUI()
 // Global variables
 let currentRef = null
 const sceneParams = {
-  envMapIntensity: 1.139,
+  envMapIntensity: 0.7393,
+  dlColor: 0xffff,
+  aiColor: 0xffff,
 }
 
 // Scene, camera, renderer
@@ -19,10 +21,43 @@ camera.position.set(5, 5, 8)
 camera.lookAt(new THREE.Vector3())
 
 const renderer = new THREE.WebGLRenderer()
+renderer.outputEncoding = THREE.sRGBEncoding
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFShadowMap
 renderer.physicallyCorrectLights = true
+
+// agrega diferentes tonalidades a la escene dependiendo que eligas
+// THREE.NoToneMapping
+// THREE.LinearToneMapping
+// THREE.ReinhardToneMapping
+// THREE.CineonToneMapping
+// THREE.ACESFilmicToneMapping
+renderer.toneMapping = THREE.CineonToneMapping
+
+// cantidad de luz que el toneMapping permita en escena
+renderer.toneMappingExposure = 1.5
+
 renderer.setSize(100, 100)
+
+const rendererTweaks = gui.addFolder('Renderer')
+rendererTweaks
+  .add(renderer, 'toneMapping', {
+    'THREE.NoToneMapping': THREE.NoToneMapping,
+    'THREE.LinearToneMapping': THREE.LinearToneMapping,
+    'THREE.ReinhardToneMapping': THREE.ReinhardToneMapping,
+    'THREE.CineonToneMapping': THREE.CineonToneMapping,
+    'THREE.ACESFilmicToneMapping': THREE.ACESFilmicToneMapping,
+  })
+  .onChange(() => {
+    scene.traverse((child) => {
+      renderer.toneMapping = Number(renderer.toneMapping)
+      if (child instanceof THREE.Mesh) {
+        child.material.needsUpdate = true
+      }
+    })
+  })
+
+rendererTweaks.add(renderer, 'toneMappingExposure').min(0).max(5).step(0.0001)
 
 // OrbitControls
 const orbitControls = new OrbitControls(camera, renderer.domElement)
@@ -86,15 +121,16 @@ gltfLoader.load(
 const castAndReceiveShadows = () => {
   scene.traverse((child) => {
     if (child instanceof THREE.Mesh) {
+      child.material.envMapIntensity = sceneParams.envMapIntensity
       child.castShadow = true
       child.receiveShadow = true
     }
   })
 }
 
-//Plane base
+// Plane base
 const planeBase = new THREE.Mesh(
-  new THREE.PlaneBufferGeometry(5, 5),
+  new THREE.PlaneBufferGeometry(15, 3),
   new THREE.MeshStandardMaterial()
 )
 planeBase.rotation.x = Math.PI * -0.5
@@ -103,9 +139,13 @@ scene.add(planeBase)
 
 // Lights
 const folderLights = gui.addFolder('Lights')
-const light1 = new THREE.DirectionalLight(0xfffffff, 8.981)
-light1.position.set(6, 6, 6)
+const light1 = new THREE.DirectionalLight(0xfffffff, 7.7899)
+light1.position.set(0, 6, 2)
 light1.castShadow = true
+light1.shadow.mapSize.set(1024, 1024)
+// si la sombra en el objeto castiado se refleja con algunos errores
+light1.shadow.bias = 0.0005
+light1.shadow.normalBias = 0.0005
 scene.add(light1)
 
 folderLights
@@ -114,8 +154,14 @@ folderLights
   .max(10)
   .step(0.0001)
   .name('DL Intensity')
+folderLights
+  .addColor(sceneParams, 'dlColor')
+  .onChange(() => {
+    light1.color.set(sceneParams.dlColor)
+  })
+  .name('DL Color')
 
-const ambientlight = new THREE.AmbientLight(0xffffff, 0.706)
+const ambientlight = new THREE.AmbientLight(0xffffff, 6.111)
 scene.add(ambientlight)
 folderLights
   .add(ambientlight, 'intensity')
@@ -123,6 +169,12 @@ folderLights
   .max(10)
   .step(0.0001)
   .name('AL Intensity')
+folderLights
+  .addColor(sceneParams, 'aiColor')
+  .onChange(() => {
+    ambientlight.color.set(sceneParams.aiColor)
+  })
+  .name('AI Color')
 
 const enviromentMap = new THREE.CubeTextureLoader()
 const envMap = enviromentMap.load([
